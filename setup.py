@@ -16,7 +16,7 @@ setup(
         "clip-text-decoder",
         "flair",
         "groundingdino @ git+https://github.com/IDEA-Research/GroundingDINO.git",
-        "numpy",
+        "numpy--1.26.4",
         "openai==0.27.4",
         "Pillow",
         "python-dotenv",
