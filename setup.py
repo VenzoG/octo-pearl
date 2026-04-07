@@ -1,11 +1,17 @@
+import importlib
 from os import system
 from sys import executable
 
 from setuptools import find_packages, setup
 
-PREREQS = ["torch"]  # GroundingDINO assumes torch is installed
-for prereq in PREREQS:
-    system(f"{executable} -m pip install {prereq}")
+# GroundingDINO requires torch to be present at *build* time (not just runtime).
+# Only attempt the pre-install when torch isn't already importable, and swallow
+# failures so the rest of setup.py can continue (e.g. inside pip's isolated
+# build environment where pip itself may be absent).
+try:
+    importlib.import_module("torch")
+except ImportError:
+    system(f"{executable} -m pip install torch")
 
 setup(
     name="octo-pearl",
