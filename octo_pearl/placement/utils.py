@@ -1,15 +1,14 @@
+import base64
 import os
 from typing import List, Tuple
 
-import base64
 import groundingdino.config.GroundingDINO_SwinT_OGC
 import json
 import numpy as np
-import openai
-import requests
 import torch
 from dotenv import load_dotenv
 from groundingdino.util.inference import Model
+from openai import OpenAI
 from PIL import Image
 from segment_anything import sam_model_registry
 from supervision import Detections
@@ -103,35 +102,36 @@ def read_file_to_string(file_path: str) -> str:
 """Open AI Utils."""
 
 
+def _make_openai_client(api_key: str = "") -> OpenAI:
+    if api_key:
+        return OpenAI(api_key=api_key)
+    load_dotenv()
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
 @retry(wait=wait_fixed(2))
-def completion_with_backoff(**kwargs):
-    print("Trying")
-    return openai.ChatCompletion.create(**kwargs)
+def _chat_with_backoff(client: OpenAI, **kwargs):
+    return client.chat.completions.create(**kwargs)
 
 
 def gpt4(
     usr_prompt: str, sys_prompt: str = "", api_key: str = "", model: str = "gpt-4"
 ) -> str:
-    if api_key != "":
-        openai.api_key = api_key
-    else:
-        load_dotenv()
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+    client = _make_openai_client(api_key)
 
-    message = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": usr_prompt},
-    ]
-
-    response = completion_with_backoff(
+    response = _chat_with_backoff(
+        client,
         model=model,
-        messages=message,
+        messages=[
+            {"role": "system", "content": sys_prompt},
+            {"role": "user", "content": usr_prompt},
+        ],
         temperature=0.2,
         max_tokens=1000,
         frequency_penalty=0.0,
     )
 
-    return response["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
 
 
 # Function to encode the image for gpt4v
@@ -145,42 +145,29 @@ def gpt4v(
     usr_prompt: str,
     sys_prompt: str = "",
     api_key: str = "",
-    model: str = "gpt-4-vision-preview",
+    model: str = "gpt-4o",
 ) -> str:
-    if api_key != "":
-        openai.api_key = api_key
-    else:
-        load_dotenv()
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+    client = _make_openai_client(api_key)
 
     base64_image = encode_image(image_path)
 
-    headers = {
-        "Content-Type": "application/json",
-        "Authorization": f"Bearer {openai.api_key}",
-    }
-
-    usr_content = [
-        {"type": "text", "text": usr_prompt},
-        {
-            "type": "image_url",
-            "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
-        },
-    ]
-
-    message = [
-        {"role": "system", "content": sys_prompt},
-        {"role": "user", "content": usr_content},
-    ]
-
-    payload = {
-        "model": model,
-        "messages": message,
-        "max_tokens": 200,
-    }
-
-    response = requests.post(
-        "https://api.openai.com/v1/chat/completions", headers=headers, json=payload
+    response = _chat_with_backoff(
+        client,
+        model=model,
+        messages=[
+            {"role": "system", "content": sys_prompt},
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": usr_prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"},
+                    },
+                ],
+            },
+        ],
+        max_tokens=200,
     )
 
-    return (response.json())["choices"][0]["message"]["content"]
+    return response.choices[0].message.content
