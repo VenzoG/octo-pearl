@@ -29,7 +29,6 @@ setup(
         "Pillow",
         "python-dotenv",
         "ram @ git+https://github.com/xinyu1205/recognize-anything.git",
-        "salesforce-lavis @ git+https://github.com/salesforce/LAVIS.git@4ad7b8d040eaeb3a83bb2b76a636c964bbbeaedb",
         "segment_anything @ git+https://github.com/facebookresearch/segment-anything.git",
         "tenacity",
     ],
